@@ -1,0 +1,14 @@
+{
+  "name": "cf-auto-signup",
+  "version": "1.0.0",
+  "description": "Standalone Cloudflare Auto-Signup Tool",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "cors": "^2.8.5"
+  }
+}

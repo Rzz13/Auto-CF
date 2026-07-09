@@ -1,0 +1,9 @@
+{
+  "domains": [],
+  "settings": {
+    "routerUrl": "http://localhost:20128",
+    "routerKey": "123456",
+    "captchaKey": "MASUKKAN_API_KEY_2CAPTCHA_ANDA",
+    "delayMultiplier": 1.0
+  }
+}

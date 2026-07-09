@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CF Automation Manager</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="background-glow"></div>
+  
+  <div class="app-container">
+    <!-- Header -->
+    <header class="glass-header">
+      <div class="brand">
+        <span class="icon">☁️</span>
+        <h1>CF Automation Manager</h1>
+      </div>
+      <div class="nav-tabs">
+        <button class="nav-tab active" id="tab-btn-dashboard">📊 Dashboard</button>
+        <button class="nav-tab" id="tab-btn-setup">📧 Email & Wrangler Setup</button>
+      </div>
+      <div class="status-badge" id="sse-status">
+        <span class="status-dot green"></span> Connected
+      </div>
+    </header>
+
+    <!-- Dashboard View Container -->
+    <div id="dashboard-view">
+      <!-- Main Grid -->
+      <div class="dashboard-grid">
+      
+      <!-- Left Column: Controls -->
+      <div class="control-column">
+        <!-- Photo 1: Generate Temp Accounts Widget -->
+        <section class="glass-card widget-card">
+          <div class="widget-header">
+            <span class="widget-icon">👤➕</span>
+            <h2>Generate Temp Accounts</h2>
+          </div>
+          
+          <form id="generator-form">
+            <div class="input-group">
+              <label for="provider-select">Target Provider Connection</label>
+              <select id="provider-select" class="form-select">
+                <option value="cloudflare-ai">☁️ Cloudflare Workers AI</option>
+              </select>
+            </div>
+
+            <div class="checkbox-group">
+              <label class="custom-checkbox">
+                <input type="checkbox" id="auto-generate-email" checked>
+                <span class="checkmark"></span>
+                Auto Generate Email (Ammail)
+              </label>
+            </div>
+
+            <!-- Manual Email Input (shown only if auto-generate is unchecked) -->
+            <div class="input-group" id="manual-email-group" style="display: none;">
+              <label for="manual-email">Manual Email Address</label>
+              <input type="text" id="manual-email" placeholder="contoh: user@domainku.com">
+            </div>
+
+            <div class="form-row split align-center">
+              <div class="input-group">
+                <label for="generate-count">Count to generate:</label>
+                <input type="number" id="generate-count" min="1" max="100" value="1" class="count-input">
+              </div>
+              
+              <div class="input-group">
+                <label for="domain-select">Email domain:</label>
+                <select id="domain-select" class="form-select">
+                  <option value="no-domain">No domain</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="button-group">
+              <button type="submit" class="btn-orange" id="btn-generate">Generate & Run</button>
+              <button type="button" class="btn-stop" id="btn-stop" style="display: none;">Stop Process 🛑</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- Photo 2: Automation Settings Widget -->
+        <section class="glass-card widget-card">
+          <div class="widget-header">
+            <span class="widget-icon">⚙️</span>
+            <h2>Automation Settings</h2>
+          </div>
+
+          <form id="settings-form">
+            <!-- Accordion 1: General Settings -->
+            <div class="accordion-item">
+              <div class="accordion-header">
+                <span>General Settings</span>
+                <span class="arrow">▼</span>
+              </div>
+              <div class="accordion-content">
+                <div class="setting-toggle">
+                  <div class="toggle-desc">
+                    <span class="toggle-title">Headless Browser</span>
+                    <span class="toggle-sub">Jalankan di latar belakang tanpa membuka jendela baru</span>
+                  </div>
+                  <label class="switch">
+                    <input type="checkbox" id="setting-headless" checked>
+                    <span class="slider round"></span>
+                  </label>
+                </div>
+
+                <div class="setting-toggle">
+                  <div class="toggle-desc">
+                    <span class="toggle-title">Auto Inject to 9router</span>
+                    <span class="toggle-sub">Hubungkan otomatis akun sukses ke VPS 9Router</span>
+                  </div>
+                  <label class="switch">
+                    <input type="checkbox" id="setting-auto-sync">
+                    <span class="slider round"></span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Accordion 2: Outbound Proxy Settings -->
+            <div class="accordion-item">
+              <div class="accordion-header">
+                <span>Outbound Proxy Settings</span>
+                <span class="arrow">▼</span>
+              </div>
+              <div class="accordion-content">
+                <div class="setting-toggle">
+                  <div class="toggle-desc">
+                    <span class="toggle-title">Enable Outbound Proxy</span>
+                  </div>
+                  <label class="switch">
+                    <input type="checkbox" id="setting-proxy-enabled">
+                    <span class="slider round"></span>
+                  </label>
+                </div>
+
+                <div class="input-group" id="proxy-type-group" style="margin-top: 5px; margin-bottom: 5px;">
+                  <label for="proxy-type" style="font-size: 13px; color: var(--text-muted);">Proxy Type</label>
+                  <select id="proxy-type" class="form-select" style="padding: 10px 12px; font-size: 13.5px;">
+                    <option value="http">HTTP / HTTPS (Default)</option>
+                    <option value="socks5">SOCKS5</option>
+                  </select>
+                </div>
+
+                <div class="proxy-config-area" id="proxy-config-area">
+                  <div class="proxy-header-row">
+                    <span id="proxy-count-label">0 proxies configured</span>
+                    <div class="proxy-actions">
+                      <button type="button" class="btn-proxy-test" id="btn-proxy-test">🧪 Test</button>
+                      <button type="button" class="btn-proxy-edit" id="btn-proxy-edit">📝 Edit</button>
+                    </div>
+                  </div>
+                  <textarea id="proxy-list" placeholder="Masukkan list proxy satu per baris (contoh: ip:port atau username:password@ip:port)" readonly></textarea>
+                </div>
+              </div>
+            </div>
+
+            <!-- Settings Credentials (9Router Keys) -->
+            <details class="credentials-details">
+              <summary>🔒 API Credentials 9Router</summary>
+              <div class="details-content">
+                <div class="input-group">
+                  <label for="router-url">9Router URL</label>
+                  <input type="text" id="router-url" placeholder="http://localhost:20128">
+                </div>
+                <div class="input-group">
+                  <label for="router-key">9Router Login Password</label>
+                  <input type="password" id="router-key" placeholder="123456">
+                </div>
+                <div class="input-group">
+                  <label for="captcha-key">2Captcha API Key (Turnstile Solver)</label>
+                  <input type="password" id="captcha-key" placeholder="2Captcha API Key">
+                </div>
+              </div>
+            </details>
+
+            <button type="submit" class="btn-save-settings" id="btn-save-settings">Save Settings</button>
+          </form>
+        </section>
+      </div>
+
+      <!-- Right Column: Live Terminal Logs -->
+      <section class="glass-card logs-panel">
+        <div class="panel-header">
+          <h2>📺 Live Terminal Logs</h2>
+          <button type="button" class="btn-clear" id="btn-clear-logs">Clear Logs</button>
+        </div>
+        <div class="terminal-container">
+          <div class="terminal" id="terminal-logs">
+            <div class="line system-line">[Sistem] Standalone Automation Dashboard Siap. Masukkan pengaturan proxy dan jalankan otomatisasi pendaftaran.</div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Accounts List Table -->
+    <section class="glass-card accounts-section">
+      <div class="section-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <h2>📂 Daftar Akun Cloudflare Terdaftar</h2>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="btn-orange" id="btn-export-accounts" style="padding: 6px 14px; font-size: 13px; width: auto; flex: none;">📥 Export (JSON)</button>
+          <button type="button" class="btn-secondary" id="btn-refresh-accounts">Refresh Tabel 🔄</button>
+        </div>
+      </div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Tanggal</th>
+              <th>Email</th>
+              <th>Password</th>
+              <th>Cloudflare Account ID</th>
+              <th>API Token</th>
+              <th>Status</th>
+              <th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="accounts-table-body">
+            <tr>
+              <td colspan="7" class="loading-td">Memuat daftar akun...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+    </div> <!-- End of dashboard-view -->
+
+    <!-- Setup View Container (Email & Wrangler Config) -->
+    <div id="setup-view" style="display: none;" class="setup-page">
+      <div class="setup-grid">
+        <!-- Left Column: Panduan Konfigurasi (Narrow) -->
+        <div class="control-column">
+          <section class="glass-card">
+            <div class="widget-header">
+              <span class="widget-icon">📖</span>
+              <h2>Cara Kerja & Panduan Email Routing</h2>
+            </div>
+            
+            <div class="info-guide">
+              <h3>1. Konfigurasi Cloudflare Email Routing</h3>
+              <ol>
+                <li>Buka dashboard Cloudflare, pilih domain Anda yang akan digunakan.</li>
+                <li>Masuk ke menu <strong>Email -> Email Routing</strong> lalu aktifkan fiturnya.</li>
+                <li>Buat <strong>Destination Address</strong> baru dan verifikasi alamat email tujuan tersebut.</li>
+                <li>Di tab <strong>Routing Rules</strong>, buat rule baru (misalnya Catch-All atau custom address) dengan aksi <strong>Send to Worker</strong> dan arahkan ke worker yang baru dideploy (<code>cloudflare-email-handler</code>).</li>
+              </ol>
+            </div>
+
+             <div class="info-guide">
+              <h3>2. KV Namespace & Worker Mailer</h3>
+              <p style="font-size: 13.5px; color: var(--text-muted); line-height: 1.5; margin-bottom: 10px;">
+                Worker menggunakan Cloudflare KV Namespace bernama <strong>EMAIL_KV</strong> untuk menyimpan sementara isi email yang diterima selama 1 jam. Saat otomatisasi signup berjalan, program akan melakukan request HTTP fetch ke Worker URL dengan menyertakan parameter <code>?email=nama@domain.com</code> untuk membaca isi email.
+              </p>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; margin-bottom: 8px;">
+                <h4 style="margin: 0; font-size: 14px; font-weight: 600; color: #fff;">Contoh Kode Script Worker (mailer/index.js):</h4>
+                <button type="button" class="btn-action" id="btn-copy-script" style="padding: 4px 10px; font-size: 11.5px;">📋 Salin Script</button>
+              </div>
+              <div class="code-container" id="code-snippet-display"></div>
+            </div>
+
+            <div class="info-guide" style="margin-top: 15px;">
+              <h3>3. Membuat KV Namespace Secara Manual</h3>
+              <ol>
+                <li>Di dashboard Cloudflare, buka menu <strong>Workers & Pages -> KV</strong>.</li>
+                <li>Klik tombol <strong>Create Namespace</strong>.</li>
+                <li>Beri nama namespace baru Anda: <strong>EMAIL_KV</strong>.</li>
+                <li>Setelah dibuat, salin <strong>ID Namespace</strong> yang dihasilkan (32 karakter hex).</li>
+                <li>Tambahkan binding KV berikut ke berkas <code>wrangler.toml</code> Anda jika setup manual:
+                  <div class="code-container" style="max-height: 110px; font-size: 11px; margin-top: 8px; white-space: pre; background: #070609;">[[kv_namespaces]]
+binding = "EMAIL_KV"
+id = "ID_NAMESPACE_ANDA"</div>
+                </li>
+              </ol>
+            </div>
+
+            <div class="info-guide" style="margin-top: 15px;">
+              <h3>4. Mengamankan Worker dengan X-API-Key (Opsional)</h3>
+              <p style="font-size: 13.5px; color: var(--text-muted); line-height: 1.5; margin-bottom: 10px;">
+                Untuk membatasi akses ke Worker agar hanya dashboard otomatisasi ini yang bisa membaca kotak masuk email kustom Anda:
+              </p>
+              <ol>
+                <li>Buka Dashboard Cloudflare, buka Worker Anda -> masuk ke tab <strong>Settings -> Variables</strong>.</li>
+                <li>Di bagian <strong>Environment Variables</strong>, klik <strong>Add Variable</strong>.</li>
+                <li>Masukkan nama key: <strong>API_KEY</strong> (atau <strong>X_API_KEY</strong>) dan isi nilainya dengan token rahasia buatan Anda sendiri.</li>
+                <li>Klik <strong>Save and Deploy</strong>.</li>
+                <li>Di tabel **Pengelola Domain Email** pada dashboard ini, isi kolom **API Key** dengan token rahasia yang sama saat mendaftarkan domain. Sistem otomatis mengirimkan header <code>x-api-key</code> saat mengambil verifikasi email.</li>
+              </ol>
+            </div>
+          </section>
+        </div>
+
+        <!-- Right Column: Domain Manager & Auto Setup (Wide) -->
+        <div class="control-column">
+          <!-- Widget 1: Domain Manager -->
+          <section class="glass-card">
+            <div class="widget-header">
+              <span class="widget-icon">🌐</span>
+              <h2>Pengelola Domain Email</h2>
+            </div>
+            <p style="font-size: 13.5px; color: var(--text-muted); margin-top: -10px;">
+              Konfigurasikan domain email dan URL Worker Handler yang akan digunakan untuk menerima email verifikasi Cloudflare.
+            </p>
+            <div class="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Domain</th>
+                    <th>Worker URL</th>
+                    <th>API Key</th>
+                    <th>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="domains-table-body">
+                  <tr>
+                    <td colspan="4" class="loading-td">Memuat daftar domain...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Add Domain Form -->
+            <form id="add-domain-form" style="margin-top: 15px;">
+              <div class="form-row split">
+                <div class="input-group">
+                  <label for="new-domain-name">Domain</label>
+                  <input type="text" id="new-domain-name" placeholder="contoh.com" required>
+                </div>
+                <div class="input-group">
+                  <label for="new-domain-key">API Key (Opsional)</label>
+                  <input type="text" id="new-domain-key" placeholder="x-api-key">
+                </div>
+              </div>
+              <div class="input-group">
+                <label for="new-domain-url">Worker URL</label>
+                <input type="text" id="new-domain-url" placeholder="https://yourworkerurl.com" required>
+              </div>
+              <button type="submit" class="btn-orange" id="btn-add-domain" style="margin-top: 6px; width: 100%;">➕ Tambah Domain</button>
+            </form>
+          </section>
+
+          <!-- Widget 2: Auto-Setup Wrangler -->
+          <section class="glass-card">
+            <div class="widget-header">
+              <span class="widget-icon">⚡</span>
+              <h2>Auto Setup Cloudflare Wrangler</h2>
+            </div>
+            <p style="font-size: 13.5px; color: var(--text-muted); margin-top: -10px;">
+              Otomatis buat KV namespace, setup wrangler.toml, dan deploy Cloudflare Worker dari template di mailer/index.js.
+            </p>
+            <form id="wrangler-setup-form" onsubmit="event.preventDefault();">
+              <div class="input-group">
+                <label for="setup-api-token">Cloudflare API Token (Opsional)</label>
+                <input type="password" id="setup-api-token" placeholder="Biarkan kosong jika sudah login melalui 'npx wrangler login' di terminal">
+              </div>
+              <div class="form-row split">
+                <div class="input-group">
+                  <label for="setup-domain-name">Nama Domain Target</label>
+                  <input type="text" id="setup-domain-name" placeholder="domainku.com" required>
+                </div>
+                <div class="input-group">
+                  <label for="setup-api-key">Security API Key (Opsional)</label>
+                  <input type="password" id="setup-api-key" placeholder="Untuk mengamankan API Fetch email">
+                </div>
+              </div>
+              <button type="submit" class="btn-orange" id="btn-run-wrangler-setup" style="margin-top: 6px; width: 100%;">🚀 Mulai Deploy & Setup</button>
+            </form>
+
+            <div class="input-group" style="margin-top: 10px;">
+              <label>Console Log Real-time:</label>
+              <div class="console-panel" id="wrangler-console-logs">
+                <div class="log-line">[Sistem] Siap melakukan deploy. Pengaturan Anda akan disimpan ke config.json jika sukses.</div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Custom Premium Alert Modal -->
+  <div id="custom-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <span class="modal-title-icon">⚠️</span>
+        <h3 id="modal-title">Pemberitahuan</h3>
+      </div>
+      <div class="modal-body" id="modal-message"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn-orange" id="modal-close-btn" style="padding: 10px 20px; font-size: 13.5px; width: auto; flex: none;">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
