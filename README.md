@@ -7,7 +7,7 @@
   <img src="https://img.shields.io/badge/license-MIT-red?style=for-the-badge" alt="License MIT" />
 </p>
 
-**CF Auto-Signup Manager** adalah aplikasi dashboard otomasi mandiri (standalone) yang dirancang untuk melakukan registrasi massal akun Cloudflare secara otomatis. Alat ini dilengkapi bypass Captcha Turnstile, integrasi domain email kustom via Cloudflare Worker/KV, serta sinkronisasi otomatis ke sistem VPS **9Router**.
+**CF Auto-Signup Manager** adalah aplikasi dashboard otomasi mandiri (standalone) yang dirancang untuk melakukan registrasi massal akun secara otomatis. Alat ini dilengkapi bypass Captcha Turnstile, integrasi domain email kustom via Cloudflare Worker/KV, serta sinkronisasi otomatis ke sistem **9Router**.
 
 Didesain dengan antarmuka gelap minimalis yang premium dan dilengkapi penanganan proxy keluar (*outbound proxy*) untuk menjaga keamanan sidik jari (*fingerprint*) browser Anda.
 
@@ -19,7 +19,7 @@ Didesain dengan antarmuka gelap minimalis yang premium dan dilengkapi penanganan
 - 🔑 **Bypass Captcha Turnstile**: Terintegrasi langsung dengan API **2Captcha** untuk menyelesaikan tantangan Turnstile secara otomatis di latar belakang.
 - 📧 **Pengelola Domain Email Dinamis**:
   - Konfigurasi domain kustom untuk menerima email verifikasi.
-  - **Auto Setup Wrangler**: Cukup satu klik untuk membuat KV Namespace, menulis berkas `wrangler.toml`, dan men-deploy email routing Worker secara otomatis ke Cloudflare.
+  - **Auto Setup Wrangler**: Cukup satu klik untuk membuat KV Namespace, menulis berkas `wrangler.toml`, dan men-deploy email routing Worker secara.
 - 🔗 **Sinkronisasi 9Router**: Otomatis memasukkan kredensial akun sukses (Email, Password, Account ID, API Token) langsung ke panel VPS **9Router**.
 - 📥 **Export Data Mudah**: Unduh daftar akun sukses hasil otomatisasi kapan saja dalam format **JSON** sekali klik.
 - 🌐 **Outbound Proxy List**: Mendukung daftar proxy (HTTP/SOCKS5) dalam format file `proxies.txt` dengan opsi rotasi otomatis per tugas registrasi.
