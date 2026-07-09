@@ -30,8 +30,8 @@ Didesain dengan antarmuka gelap minimalis yang premium dan dilengkapi penanganan
 ## 🛠️ Prasyarat (Prerequisites)
 
 Sebelum menjalankan aplikasi, pastikan sistem Anda telah terpasang:
-1. **Node.js** (versi 18 ke atas)
-2. **Python** (versi 3.8 ke atas)
+1. **Node.js** ( versi >= 18)
+2. **Python** ( versi >= 3.8)
 
 ---
 
@@ -39,8 +39,8 @@ Sebelum menjalankan aplikasi, pastikan sistem Anda telah terpasang:
 
 ### 1. Kloning Repositori
 ```bash
-git clone https://github.com/username/cf-auto-signup.git
-cd cf-auto-signup
+git clone https://github.com/Rzz13/Auto-CF.git
+cd Auto-CF
 ```
 
 ### 2. Instalasi Dependensi Node.js
@@ -71,7 +71,7 @@ Buka peramban browser Anda lalu akses dashboard di alamat:
 Masukkan daftar proxy Anda ke dalam berkas `proxies.txt` di root folder proyek (satu proxy per baris):
 ```text
 # Contoh format proxy:
-ip:port
+ip:port:user:password
 username:password@ip:port
 ```
 *Daftar proxy ini dapat diedit dan disimpan secara langsung melalui panel **Outbound Proxy Settings** di dashboard UI.*
