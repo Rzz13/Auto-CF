@@ -438,7 +438,7 @@ def try_click_turnstile_checkbox(page) -> bool:
 def wait_for_cf_clearance(page, timeout=45.0):
     if not is_on_turnstile_page(page):
         return True
-    log_step("Cloudflare Turnstile terdeteksi, menunggu resolve...")
+    # log_step("Cloudflare Turnstile terdeteksi, menunggu resolve...")
     deadline = time.time() + timeout
     click_attempts = 0
     next_click_at = time.time() + 4.0
@@ -857,7 +857,7 @@ def main():
     # Pre-create Ammail inbox if we have credentials
     ammail_ok = bool(args.ammail_base_url and args.ammail_api_key and args.ammail_domain)
     if ammail_ok:
-        log_step(f"Membuat inbox Ammail untuk {args.email}...")
+        # log_step(f"Membuat inbox Ammail untuk {args.email}...")
         try:
             create_ammail_inbox(args.ammail_base_url, args.ammail_api_key, args.email)
         except Exception as e:
@@ -1089,7 +1089,7 @@ def main():
                 _cur_url = page.url
                 # Any URL change away from signup/login = success
                 if 'dash.cloudflare.com/login' not in _cur_url and 'dash.cloudflare.com' in _cur_url:
-                    log_step(f"CF redirect detected after signup: {_cur_url[:60]}")
+                    # log_step(f"CF redirect detected after signup: {_cur_url[:60]}")
                     signup_success_verify = True
                     break
                 # Also re-check body text
@@ -1140,7 +1140,7 @@ def main():
                 timeout=240,
             )
             if verify_link:
-                log_step(f"Membuka link verifikasi...")
+                # log_step(f"Membuka link verifikasi...")
                 try:
                     page.goto(verify_link, wait_until="commit", timeout=45000)
                     log_step("Link verifikasi dimuat. Memeriksa tantangan Turnstile...")
@@ -1150,7 +1150,7 @@ def main():
                     wait_for_cf_clearance(page, timeout=30.0)
                     
                     # Tunggu hingga halaman melakukan redirect otomatis keluar dari /email-verification (maks 10s)
-                    log_step("Menunggu redirect otomatis keluar dari halaman verifikasi...")
+                    # log_step("Menunggu redirect otomatis keluar dari halaman verifikasi...")
                     for _wait_url in range(10):
                         if "email-verification" not in page.url:
                             # log_step(f"Redirect terdeteksi ke: {page.url[:60]}")
@@ -1181,7 +1181,7 @@ def main():
         # Hal ini 100% mem-bypass halaman login dashboard manual, form, ataupun tantangan OTP.
         if not email_already_registered:
             try:
-                log_step("Mencoba langsung generate API token dari session saat ini...")
+                # log_step("Mencoba langsung generate API token dari session saat ini...")
                 # Pastikan tidak ada Turnstile halaman yang menghalangi request API
                 wait_for_cf_clearance(page, timeout=15.0)
                 

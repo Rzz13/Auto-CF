@@ -224,7 +224,7 @@ app.post("/api/run", async (req, res) => {
             `Berhasil membuat akun: ${parsed.email}|${password} [${parsed.account_id}|${parsed.api_key}]${proxy ? ` {${proxy}}` : ""}`,
           );
           broadcastLog({
-            step: `[${email}] Akun sukses terverifikasi! Menyimpan hasil...`,
+            step: `[${email}] Akun sukses terverifikasi!`,
             email,
           });
 

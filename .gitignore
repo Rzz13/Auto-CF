@@ -14,6 +14,7 @@ profiles/
 
 # User configurations & databases (Sensitive data)
 config.json
+accounts.json
 proxies.txt
 
 # Log files
