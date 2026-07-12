@@ -14,6 +14,7 @@ const STORAGE_KEYS = {
   PROXY_TYPE: "cf_auto_proxy_type",
   EMAIL_AUTO: "cf_auto_email_auto",
   EMAIL_DOMAIN: "cf_auto_email_domain",
+  CONCURRENT_RUN: "cf_auto_concurrent_run",
 };
 
 // --- DOM Elements ---
@@ -31,6 +32,7 @@ const elDomainSelect = document.getElementById("domain-select");
 
 const elHeadless = document.getElementById("setting-headless");
 const elAutoSync = document.getElementById("setting-auto-sync");
+const elConcurrentRun = document.getElementById("setting-concurrent-run");
 
 const elProxyEnabled = document.getElementById("setting-proxy-enabled");
 const elProxyType = document.getElementById("proxy-type");
@@ -58,6 +60,7 @@ let runQueue = {
   totalCount: 0,
   emails: [],
   passwords: [],
+  activeJobs: {},
 };
 let currentJobRetryCount = 0;
 
@@ -154,6 +157,8 @@ async function loadSettings() {
     localStorage.getItem(STORAGE_KEYS.EMAIL_AUTO) !== "false";
   elDomainSelect.value =
     localStorage.getItem(STORAGE_KEYS.EMAIL_DOMAIN) || "random";
+  elConcurrentRun.checked =
+    localStorage.getItem(STORAGE_KEYS.CONCURRENT_RUN) === "true";
 
   try {
     const res = await fetch("/api/proxies");
@@ -184,6 +189,7 @@ async function saveSettings() {
 
   localStorage.setItem(STORAGE_KEYS.EMAIL_AUTO, elAutoEmail.checked);
   localStorage.setItem(STORAGE_KEYS.EMAIL_DOMAIN, elDomainSelect.value);
+  localStorage.setItem(STORAGE_KEYS.CONCURRENT_RUN, elConcurrentRun.checked);
 
   const proxiesVal = elProxyList.value;
   try {
@@ -204,7 +210,8 @@ async function saveSettings() {
         settings: {
           routerUrl,
           routerKey,
-          captchaKey
+          captchaKey,
+          concurrentRun: elConcurrentRun.checked
         }
       })
     });
@@ -329,19 +336,43 @@ function initEventSource() {
       }
 
       if (data.status === "success") {
-        writeToTerminal(
-          `[Queue ${runQueue.currentIndex + 1}/${runQueue.totalCount}] Sukses: ${data.account.email}`,
-          "success",
-        );
-        currentJobRetryCount = 0;
-        fetchAccounts();
-        advanceQueue();
+        if (elConcurrentRun.checked) {
+          writeToTerminal(
+            `[Sukses] Akun berhasil dibuat: ${data.account.email}`,
+            "success",
+          );
+          const emailKey = data.email || data.account.email;
+          delete runQueue.activeJobs[emailKey];
+          fetchAccounts();
+          checkConcurrentQueueFinished();
+        } else {
+          writeToTerminal(
+            `[Queue ${runQueue.currentIndex + 1}/${runQueue.totalCount}] Sukses: ${data.account.email}`,
+            "success",
+          );
+          currentJobRetryCount = 0;
+          fetchAccounts();
+          advanceQueue();
+        }
       } else if (data.status === "error") {
-        writeToTerminal(
-          `[Queue ${runQueue.currentIndex + 1}/${runQueue.totalCount}] Gagal: ${data.error}`,
-          "error",
-        );
-        handleJobFailure();
+        if (elConcurrentRun.checked) {
+          writeToTerminal(
+            `[Gagal] ${data.error}`,
+            "error",
+          );
+          const emailKey = data.email;
+          if (emailKey) {
+            handleConcurrentJobFailure(emailKey);
+          } else {
+            checkConcurrentQueueFinished();
+          }
+        } else {
+          writeToTerminal(
+            `[Queue ${runQueue.currentIndex + 1}/${runQueue.totalCount}] Gagal: ${data.error}`,
+            "error",
+          );
+          handleJobFailure();
+        }
       } else if (data.status === "wrangler-success") {
         if (typeof writeToWranglerConsole === "function") {
           writeToWranglerConsole(
@@ -378,6 +409,21 @@ function initEventSource() {
 // --- Queue Execution Controller ---
 async function runQueueStep() {
   if (!runQueue.active) return;
+
+  if (elConcurrentRun.checked) {
+    runQueue.activeJobs = {};
+    for (let i = 0; i < runQueue.totalCount; i++) {
+      const email = runQueue.emails[i];
+      const password = runQueue.passwords[i];
+      runQueue.activeJobs[email] = { retryCount: 0, password };
+    }
+    for (let i = 0; i < runQueue.totalCount; i++) {
+      const email = runQueue.emails[i];
+      const password = runQueue.passwords[i];
+      triggerSingleRun(email, password);
+    }
+    return;
+  }
 
   const email = runQueue.emails[runQueue.currentIndex];
   const password = runQueue.passwords[runQueue.currentIndex];
@@ -500,6 +546,109 @@ function advanceQueue() {
     writeToTerminal(`===========================================`, "success");
     writeToTerminal(
       `Semua tugas otomatisasi selesai! (${runQueue.totalCount} Job)`,
+      "success",
+    );
+    writeToTerminal(`===========================================`, "success");
+
+    elSubmit.removeAttribute("disabled");
+    elSubmit.innerText = "Generate & Run";
+    elStop.style.display = "none";
+  }
+}
+
+async function triggerSingleRun(email, password) {
+  if (!runQueue.active) return;
+
+  writeToTerminal(`[Parallel] Memulai otomatisasi untuk: ${email}`);
+
+  let selectedProxy = "";
+  if (elProxyEnabled.checked) {
+    const proxies = getProxiesArray();
+    if (proxies.length > 0) {
+      selectedProxy = proxies[Math.floor(Math.random() * proxies.length)];
+    }
+  }
+
+  const ammailBaseUrl = "custom";
+  const ammailApiKey = "custom";
+  const routerUrl = elAutoSync.checked ? elRouterUrl.value.trim() : "";
+  const routerApiKey = elAutoSync.checked ? elRouterKey.value.trim() : "";
+  const captchaKey = elCaptchaKey.value.trim();
+  const proxyType = elProxyType.value;
+  const emailDomain = email.split("@")[1];
+
+  try {
+    const res = await fetch("/api/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email,
+        password,
+        proxy: selectedProxy,
+        proxyType,
+        ammailBaseUrl,
+        ammailApiKey,
+        ammailDomain: emailDomain,
+        routerUrl,
+        routerApiKey,
+        captchaKey,
+        headless: elHeadless.checked,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || "Gagal memicu run pada server");
+    }
+  } catch (err) {
+    writeToTerminal(`[${email}] Gagal memicu Job: ${err.message}`, "error");
+    handleConcurrentJobFailure(email);
+  }
+}
+
+function handleConcurrentJobFailure(email) {
+  if (!runQueue.active) return;
+  const job = runQueue.activeJobs[email];
+  if (!job) return;
+
+  const proxies = getProxiesArray();
+  if (elProxyEnabled.checked && proxies.length > 0 && job.retryCount < 5) {
+    job.retryCount++;
+    writeToTerminal(`[${email}][Retry ${job.retryCount}/5] Mencoba ulang dengan proxy acak baru...`, "stderr");
+
+    let targetEmail = email;
+    let targetPassword = job.password;
+    if (elAutoEmail.checked && cachedDomains.length > 0) {
+      const prefix = generateRandomEmailPrefix();
+      const domainSelection = elDomainSelect.value;
+      let domain = "";
+      if (domainSelection === "random") {
+        domain = cachedDomains[Math.floor(Math.random() * cachedDomains.length)].domain;
+      } else {
+        domain = domainSelection;
+      }
+      targetEmail = `${prefix}@${domain}`;
+      targetPassword = generateStrongPassword();
+
+      delete runQueue.activeJobs[email];
+      runQueue.activeJobs[targetEmail] = { retryCount: job.retryCount, password: targetPassword };
+      writeToTerminal(`[${email}] Target email diganti menjadi: ${targetEmail}`);
+    }
+
+    setTimeout(() => triggerSingleRun(targetEmail, targetPassword), 2000);
+  } else {
+    writeToTerminal(`[${email}] Job gagal permanen setelah percobaan maksimal.`, "error");
+    delete runQueue.activeJobs[email];
+    checkConcurrentQueueFinished();
+  }
+}
+
+function checkConcurrentQueueFinished() {
+  if (!runQueue.active) return;
+  if (Object.keys(runQueue.activeJobs).length === 0) {
+    runQueue.active = false;
+    writeToTerminal(`===========================================`, "success");
+    writeToTerminal(
+      `Semua tugas otomatisasi selesai! (Concurrent Mode)`,
       "success",
     );
     writeToTerminal(`===========================================`, "success");
@@ -724,6 +873,10 @@ async function fetchConfigDomains() {
         if (data.settings.captchaKey !== undefined) {
           elCaptchaKey.value = data.settings.captchaKey;
           localStorage.setItem(STORAGE_KEYS.CAPTCHA_KEY, data.settings.captchaKey);
+        }
+        if (data.settings.concurrentRun !== undefined) {
+          elConcurrentRun.checked = data.settings.concurrentRun;
+          localStorage.setItem(STORAGE_KEYS.CONCURRENT_RUN, data.settings.concurrentRun);
         }
       }
     }
@@ -1028,6 +1181,15 @@ window.alert = function(message) {
     elMessage.innerText = message;
     elIcon.innerText = icon;
     modal.style.display = "flex";
+
+    if (window.alertAutoCloseTimeout) {
+      clearTimeout(window.alertAutoCloseTimeout);
+    }
+    if (msgLower.includes("disalin")) {
+      window.alertAutoCloseTimeout = setTimeout(() => {
+        modal.style.display = "none";
+      }, 1000);
+    }
   } else {
     console.log(`[Alert] ${title}: ${message}`);
   }

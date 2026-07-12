@@ -7,7 +7,7 @@
   <img src="https://img.shields.io/badge/license-MIT-red?style=for-the-badge" alt="License MIT" />
 </p>
 
-**CF Auto-Signup Manager** adalah aplikasi dashboard otomasi mandiri (standalone) yang dirancang untuk melakukan registrasi massal akun secara otomatis. Alat ini dilengkapi bypass Captcha Turnstile, integrasi domain email kustom via Cloudflare Worker/KV, serta sinkronisasi otomatis ke sistem **9Router**.
+**CF Auto-Signup Manager** adalah aplikasi dashboard otomasi mandiri (standalone) yang dirancang untuk melakukan registrasi massal akun Cloudflare secara otomatis. Alat ini dilengkapi bypass Captcha Turnstile, integrasi domain email kustom via Cloudflare Worker/KV, serta sinkronisasi otomatis ke sistem **9Router**.
 
 Didesain dengan antarmuka gelap minimalis yang premium dan dilengkapi penanganan proxy keluar (*outbound proxy*) untuk menjaga keamanan sidik jari (*fingerprint*) browser Anda.
 
@@ -16,11 +16,18 @@ Didesain dengan antarmuka gelap minimalis yang premium dan dilengkapi penanganan
 ## ✨ Fitur Utama
 
 - 🤖 **Otomasi Camoufox**: Menggunakan Playwright dengan browser Camoufox (anti-fingerprinting tingkat lanjut) untuk bypass deteksi bot secara maksimal.
+- ⚡ **Jalankan Secara Bersamaan (Concurrent Mode)**:
+  - Mampu meluncurkan beberapa proses registrasi browser secara paralel di latar belakang untuk menghemat waktu.
+  - Dilengkapi fitur pengenal tag email di logs terminal (`[email@domain]`) agar pembacaan proses multi-akun tetap rapi dan terorganisir.
+  - Penanganan *error*, *retry*, dan rotasi proxy berjalan mandiri di setiap tugas paralel.
 - 🔑 **Bypass Captcha Turnstile**: Terintegrasi langsung dengan API **2Captcha** untuk menyelesaikan tantangan Turnstile secara otomatis di latar belakang.
 - 📧 **Pengelola Domain Email Dinamis**:
   - Konfigurasi domain kustom untuk menerima email verifikasi.
-  - **Auto Setup Wrangler**: Cukup satu klik untuk membuat KV Namespace, menulis berkas `wrangler.toml`, dan men-deploy email routing Worker secara.
-- 🔗 **Sinkronisasi 9Router**: Otomatis memasukkan kredensial akun sukses (Email, Password, Account ID, API Token) langsung ke panel VPS **9Router**.
+  - **Auto Setup Wrangler**: Cukup satu klik untuk membuat KV Namespace, menulis berkas `wrangler.toml`, dan men-deploy email routing Worker secara otomatis ke Cloudflare.
+- 🔗 **Sinkronisasi Otomatis 9Router**:
+  - Otomatis memasukkan kredensial akun sukses (Email, Password, Account ID, API Token) langsung ke panel VPS **9Router**.
+  - **Robust Auto Re-login (Cookie Mode)**: Jika otentikasi session cookie kedaluwarsa atau menghasilkan status `401 Unauthorized`, server backend otomatis melakukan otentikasi login ulang ke VPS 9Router dan mencoba ulang sinkronisasi tanpa intervensi manual.
+- 📋 **Pop-up Auto-Close**: Pop-up notifikasi setelah Anda menyalin Email, API Token (Copy Key), Account ID (Copy ID), atau Mailer Script akan otomatis menutup diri dalam 1 detik.
 - 📥 **Export Data Mudah**: Unduh daftar akun sukses hasil otomatisasi kapan saja dalam format **JSON** sekali klik.
 - 🌐 **Outbound Proxy List**: Mendukung daftar proxy (HTTP/SOCKS5) dalam format file `proxies.txt` dengan opsi rotasi otomatis per tugas registrasi.
 - 📺 **Logs Streaming Real-time**: Logs visual dari browser otomatisasi dan Wrangler streaming secara langsung ke dashboard web melalui Server-Sent Events (SSE).
@@ -30,8 +37,8 @@ Didesain dengan antarmuka gelap minimalis yang premium dan dilengkapi penanganan
 ## 🛠️ Prasyarat (Prerequisites)
 
 Sebelum menjalankan aplikasi, pastikan sistem Anda telah terpasang:
-1. **Node.js** ( versi >= 18)
-2. **Python** ( versi >= 3.8)
+1. **Node.js** (versi >= 18)
+2. **Python** (versi >= 3.8)
 
 ---
 
@@ -105,6 +112,8 @@ Jika belum memiliki Worker untuk menangkap email verifikasi Cloudflare, masuk ke
 │   └── index.html              # Antarmuka dashboard
 ├── accounts.json               # Database hasil akun terdaftar (Auto Generated)
 ├── config.json                 # Konfigurasi domain & settings server (Auto Generated)
+├── config.example.json         # Contoh templat konfigurasi server
+├── LICENSE                     # File lisensi MIT
 ├── proxies.txt                 # Daftar proxy outbound (Auto Generated jika kosong)
 ├── server.js                   # Node.js backend server
 └── package.json                # Project manifest

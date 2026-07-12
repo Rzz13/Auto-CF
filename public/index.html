@@ -121,6 +121,26 @@
                     <span class="slider round"></span>
                   </label>
                 </div>
+
+                <div class="setting-toggle" style="border-top: 1px solid var(--border-color); padding-top: 15px; margin-top: 10px; display: block;">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div class="toggle-desc">
+                      <span class="toggle-title">Jalankan Secara Bersamaan (Concurrent Mode)</span>
+                      <span class="toggle-sub">Menjalankan beberapa proses registrasi browser sekaligus</span>
+                    </div>
+                    <label class="switch">
+                      <input type="checkbox" id="setting-concurrent-run">
+                      <span class="slider round"></span>
+                    </label>
+                  </div>
+                  <div style="margin-top: 8px; padding: 10px 12px; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.15); border-radius: 6px; font-size: 11.5px; color: #f87171; line-height: 1.5;">
+                    ⚠️ <strong>RISIKO & PERINGATAN:</strong>
+                    <ul style="margin-left: 18px; margin-top: 4px;">
+                      <li><strong>Beban RAM/CPU Tinggi</strong>: Setiap browser Camoufox memakan ~1.5GB RAM dan 1-2 core CPU. Menjalankan terlalu banyak tab sekaligus secara bersamaan bisa menyebabkan komputer Anda <em>lag</em> parah, macet, atau crash.</li>
+                      <li><strong>Spam IP / Rate Limit</strong>: Registrasi multi-akun dalam waktu bersamaan dari IP/Proxy yang sama akan memicu pemblokiran spam Cloudflare. Sangat disarankan untuk membatasi jumlah akun atau menggunakan rotasi proxy yang mumpuni.</li>
+                    </ul>
+                  </div>
+                </div>
               </div>
             </div>
 

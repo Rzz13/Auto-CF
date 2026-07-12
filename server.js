@@ -103,8 +103,42 @@ function parseProxyString(raw, type = "http") {
   return null;
 }
 
-let activeChild = null;
+let activeChildren = [];
 let cachedAuthToken = null;
+
+async function get9RouterAuthToken(urlClean, password) {
+  try {
+    const loginRes = await fetch(`${urlClean}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        password: password,
+      }),
+    });
+    if (loginRes.ok) {
+      const setCookieHeaders = loginRes.headers.getSetCookie
+        ? loginRes.headers.getSetCookie()
+        : [loginRes.headers.get("set-cookie")].filter(Boolean);
+
+      let authToken = null;
+      for (const header of setCookieHeaders) {
+        const match = header.match(/auth_token=([^;]+)/);
+        if (match) {
+          authToken = match[1];
+          break;
+        }
+      }
+
+      if (authToken) {
+        cachedAuthToken = authToken;
+        return authToken;
+      }
+    }
+  } catch (err) {
+    console.error("Gagal melakukan login otomatis ke 9Router:", err.message);
+  }
+  return null;
+}
 
 // Trigger CF signup automation process
 app.post("/api/run", async (req, res) => {
@@ -168,11 +202,14 @@ app.post("/api/run", async (req, res) => {
     }
   }
 
-  console.log("Running python script with args:", args);
+  console.log(
+    `running with args: ${email}|${password}${proxy ? ` {${proxy}}` : ""}`,
+  );
   broadcastLog({ step: `Memulai otomatisasi Camoufox untuk: ${email}...` });
 
   const child = spawn(pythonBinary, args);
-  activeChild = child;
+  child.email = email;
+  activeChildren.push(child);
 
   child.stdout.on("data", async (data) => {
     const lines = data.toString().split("\n");
@@ -181,10 +218,14 @@ app.post("/api/run", async (req, res) => {
       try {
         const parsed = JSON.parse(line);
         if (parsed.step) {
-          broadcastLog({ step: parsed.step });
+          broadcastLog({ step: `[${email}] ${parsed.step}`, email });
         } else if (parsed.status === "success") {
+          console.log(
+            `Berhasil membuat akun: ${parsed.email}|${password} [${parsed.account_id}|${parsed.api_key}]${proxy ? ` {${proxy}}` : ""}`,
+          );
           broadcastLog({
-            step: "Akun sukses terverifikasi! Menyimpan hasil...",
+            step: `[${email}] Akun sukses terverifikasi! Menyimpan hasil...`,
+            email,
           });
 
           // Save to local accounts.json
@@ -208,7 +249,10 @@ app.post("/api/run", async (req, res) => {
             );
             filtered.unshift(newAccount);
             fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(filtered, null, 2));
-            broadcastLog({ step: "Tersimpan lokal di accounts.json!" });
+            // broadcastLog({
+            //   step: `[${email}] Tersimpan lokal di accounts.json!`,
+            //   email,
+            // });
           } catch (writeErr) {
             console.error("Local save error:", writeErr);
           }
@@ -216,7 +260,10 @@ app.post("/api/run", async (req, res) => {
           // Push to 9Router VPS connection manager if settings provided
           if (routerUrl && routerApiKey) {
             try {
-              broadcastLog({ step: "Mengirim koneksi baru ke VPS 9Router..." });
+              broadcastLog({
+                step: `[${email}] Mengirim koneksi baru ke VPS 9Router...`,
+                email,
+              });
               const urlClean = routerUrl.endsWith("/")
                 ? routerUrl.slice(0, -1)
                 : routerUrl;
@@ -242,7 +289,16 @@ app.post("/api/run", async (req, res) => {
               if (isApiKey) {
                 headers["Authorization"] = `Bearer ${routerApiKey}`;
               } else {
-                headers["Cookie"] = `auth_token=${cachedAuthToken || routerApiKey}`;
+                if (!cachedAuthToken) {
+                  broadcastLog({
+                    step: `[${email}] Belum ada token tersimpan. Melakukan login ke 9Router...`,
+                    email,
+                  });
+                  await get9RouterAuthToken(urlClean, routerApiKey);
+                }
+                if (cachedAuthToken) {
+                  headers["Cookie"] = `auth_token=${cachedAuthToken}`;
+                }
               }
 
               let response = await fetch(`${urlClean}/api/providers`, {
@@ -251,11 +307,7 @@ app.post("/api/run", async (req, res) => {
                 body: JSON.stringify(connData),
               });
 
-              // Fallback jika menggunakan original monolith 9router (mengembalikan 404 di endpoint /api/providers)
               if (response.status === 404) {
-                broadcastLog({
-                  step: "Endpoint /api/providers 404 — Mencoba sinkronisasi ke monolith /api/providers/client...",
-                });
                 response = await fetch(`${urlClean}/api/providers/client`, {
                   method: "POST",
                   headers: headers,
@@ -263,101 +315,64 @@ app.post("/api/run", async (req, res) => {
                 });
               }
 
-              // Jika 401 Unauthorized dan input key bukan API Key (sk-), coba login menggunakan password
               if (response.status === 401 && !isApiKey) {
                 broadcastLog({
-                  step: "Status 401 Unauthorized — Mencoba melakukan login via password ke VPS...",
+                  step: `[${email}] Token kedaluwarsa atau tidak valid (401). Melakukan login ulang...`,
+                  email,
                 });
-                try {
-                  const loginRes = await fetch(`${urlClean}/api/auth/login`, {
+                cachedAuthToken = null;
+                const newAuthToken = await get9RouterAuthToken(
+                  urlClean,
+                  routerApiKey,
+                );
+                if (newAuthToken) {
+                  headers["Cookie"] = `auth_token=${newAuthToken}`;
+                  response = await fetch(`${urlClean}/api/providers`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ password: routerApiKey }),
+                    headers: headers,
+                    body: JSON.stringify(connData),
                   });
-
-                  if (loginRes.status === 200 || loginRes.status === 201) {
-                    const setCookieHeaders = loginRes.headers.getSetCookie
-                      ? loginRes.headers.getSetCookie()
-                      : [loginRes.headers.get("set-cookie")].filter(Boolean);
-
-                    let authToken = null;
-                    for (const header of setCookieHeaders) {
-                      const match = header.match(/auth_token=([^;]+)/);
-                      if (match) {
-                        authToken = match[1];
-                        break;
-                      }
-                    }
-
-                    if (authToken) {
-                      cachedAuthToken = authToken; // Simpan di cache global
-                      broadcastLog({
-                        step: "Login sukses! Mencoba ulang sinkronisasi dengan cookie auth_token baru...",
-                      });
-                      const authHeaders = {
-                        "Content-Type": "application/json",
-                        Cookie: `auth_token=${authToken}`,
-                      };
-
-                      // Coba ulang ke /api/providers dengan auth_token baru
-                      response = await fetch(`${urlClean}/api/providers`, {
-                        method: "POST",
-                        headers: authHeaders,
-                        body: JSON.stringify(connData),
-                      });
-
-                      // Jika masih 404, coba ulang ke monolith /api/providers/client
-                      if (response.status === 404) {
-                        response = await fetch(
-                          `${urlClean}/api/providers/client`,
-                          {
-                            method: "POST",
-                            headers: authHeaders,
-                            body: JSON.stringify(connData),
-                          },
-                        );
-                      }
-                    } else {
-                      broadcastLog({
-                        step: "Login berhasil tetapi gagal mengekstrak cookie auth_token.",
-                      });
-                    }
-                  } else {
-                    broadcastLog({
-                      step: `Gagal login ke VPS 9Router (Status ${loginRes.status})`,
+                  if (response.status === 404) {
+                    response = await fetch(`${urlClean}/api/providers/client`, {
+                      method: "POST",
+                      headers: headers,
+                      body: JSON.stringify(connData),
                     });
                   }
-                } catch (loginErr) {
+                } else {
                   broadcastLog({
-                    step: `Gagal melakukan percobaan login otomatis: ${loginErr.message}`,
+                    step: `[${email}] Gagal login ulang ke 9Router. Kredensial password salah.`,
+                    email,
                   });
                 }
               }
 
               if (response.status === 200 || response.status === 201) {
                 broadcastLog({
-                  step: "Sukses tersinkronisasi ke VPS 9Router!",
+                  step: `[${email}] Sukses tersinkronisasi ke VPS 9Router!`,
+                  email,
                 });
               } else {
                 const errText = await response.text();
                 broadcastLog({
-                  step: `Gagal sinkronisasi 9Router (Status ${response.status}): ${errText}`,
+                  step: `[${email}] Gagal sinkronisasi 9Router (Status ${response.status}): ${errText}`,
+                  email,
                 });
               }
             } catch (syncErr) {
               broadcastLog({
-                step: `Gagal sinkronisasi 9Router (Koneksi error): ${syncErr.message}`,
+                step: `[${email}] Gagal sinkronisasi 9Router (Koneksi error): ${syncErr.message}`,
+                email,
               });
             }
           }
 
-          broadcastLog({ status: "success", account: newAccount });
+          broadcastLog({ status: "success", account: newAccount, email });
         } else if (parsed.status === "error") {
-          broadcastLog({ status: "error", error: parsed.error });
+          broadcastLog({ status: "error", error: parsed.error, email });
         }
       } catch (e) {
-        // Raw print non-JSON logs as progress lines
-        broadcastLog({ step: line });
+        broadcastLog({ step: `[${email}] ${line}`, email });
       }
     }
   });
@@ -366,16 +381,17 @@ app.post("/api/run", async (req, res) => {
     const rawLines = data.toString().split("\n");
     for (const rawLine of rawLines) {
       if (rawLine.trim()) {
-        broadcastLog({ step: `[stderr] ${rawLine}` });
+        broadcastLog({ step: `[${email}][stderr] ${rawLine}`, email });
       }
     }
   });
 
   child.on("close", (code) => {
-    if (activeChild === child) activeChild = null;
-    broadcastLog({
-      step: `Proses otomatisasi selesai dengan exit code: ${code}`,
-    });
+    activeChildren = activeChildren.filter((c) => c !== child);
+    // broadcastLog({
+    //   step: `[${email}] Proses otomatisasi selesai dengan exit code: ${code}`,
+    //   email,
+    // });
   });
 
   res.json({ status: "started" });
@@ -383,14 +399,18 @@ app.post("/api/run", async (req, res) => {
 
 // Endpoint to stop the running automation process
 app.post("/api/stop", (req, res) => {
-  if (activeChild) {
-    try {
-      activeChild.kill("SIGTERM");
-      broadcastLog({ step: "Otomatisasi dihentikan paksa oleh pengguna." });
-    } catch (e) {
-      console.error("Failed to kill active process:", e);
-    }
-    activeChild = null;
+  if (activeChildren.length > 0) {
+    activeChildren.forEach((child) => {
+      try {
+        child.kill("SIGTERM");
+      } catch (e) {
+        console.error("Failed to kill active process:", e);
+      }
+    });
+    activeChildren = [];
+    broadcastLog({
+      step: "Semua proses otomatisasi dihentikan paksa oleh pengguna.",
+    });
     res.json({ status: "stopped" });
   } else {
     res.json({ status: "idle" });
@@ -402,17 +422,25 @@ const PROXIES_FILE = path.join(__dirname, "proxies.txt");
 
 // Initialize config.json if not exists
 if (!fs.existsSync(CONFIG_FILE)) {
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify({ domains: [], settings: {} }, null, 2));
+  fs.writeFileSync(
+    CONFIG_FILE,
+    JSON.stringify({ domains: [], settings: {} }, null, 2),
+  );
 }
 
 // Initialize proxies.txt if not exists
 if (!fs.existsSync(PROXIES_FILE)) {
-  fs.writeFileSync(PROXIES_FILE, "# Masukkan daftar proxy Anda di sini (satu per baris, contoh: ip:port atau username:password@ip:port)\n");
+  fs.writeFileSync(
+    PROXIES_FILE,
+    "# Masukkan daftar proxy Anda di sini (satu per baris, contoh: ip:port atau username:password@ip:port)\n",
+  );
 }
 
 app.get("/api/proxies", (req, res) => {
   try {
-    const content = fs.existsSync(PROXIES_FILE) ? fs.readFileSync(PROXIES_FILE, "utf-8") : "";
+    const content = fs.existsSync(PROXIES_FILE)
+      ? fs.readFileSync(PROXIES_FILE, "utf-8")
+      : "";
     res.send(content);
   } catch (err) {
     res.status(500).send("Failed to read proxies file");
@@ -499,11 +527,13 @@ app.post("/api/wrangler/setup", async (req, res) => {
 
   const runCmd = (cmd, args) => {
     return new Promise((resolve, reject) => {
-      broadcastLog({ step: `[Wrangler] Menjalankan: ${cmd} ${args.join(" ")}` });
+      broadcastLog({
+        step: `[Wrangler] Menjalankan: ${cmd} ${args.join(" ")}`,
+      });
       const p = spawn(cmd, args, {
         shell: true,
         cwd: mailerDir,
-        env: { ...process.env, ...customEnv }
+        env: { ...process.env, ...customEnv },
       });
 
       let stdout = "";
@@ -512,7 +542,7 @@ app.post("/api/wrangler/setup", async (req, res) => {
       p.stdout.on("data", (data) => {
         const text = data.toString();
         stdout += text;
-        text.split("\n").forEach(line => {
+        text.split("\n").forEach((line) => {
           if (line.trim()) broadcastLog({ step: `[Wrangler] ${line.trim()}` });
         });
       });
@@ -520,8 +550,9 @@ app.post("/api/wrangler/setup", async (req, res) => {
       p.stderr.on("data", (data) => {
         const text = data.toString();
         stderr += text;
-        text.split("\n").forEach(line => {
-          if (line.trim()) broadcastLog({ step: `[Wrangler stderr] ${line.trim()}` });
+        text.split("\n").forEach((line) => {
+          if (line.trim())
+            broadcastLog({ step: `[Wrangler stderr] ${line.trim()}` });
         });
       });
 
@@ -543,7 +574,9 @@ app.post("/api/wrangler/setup", async (req, res) => {
         await runCmd("npx", ["wrangler", "whoami"]);
       } catch (err) {
         if (!apiToken) {
-          broadcastLog({ step: "[Wrangler Error] Anda belum login ke Wrangler. Harap jalankan 'npx wrangler login' di terminal Anda, atau masukkan Cloudflare API Token." });
+          broadcastLog({
+            step: "[Wrangler Error] Anda belum login ke Wrangler. Harap jalankan 'npx wrangler login' di terminal Anda, atau masukkan Cloudflare API Token.",
+          });
           throw err;
         }
       }
@@ -551,24 +584,47 @@ app.post("/api/wrangler/setup", async (req, res) => {
       broadcastLog({ step: "[Wrangler] Memeriksa KV Namespace..." });
       let kvId = "";
       try {
-        const kvListOutput = await runCmd("npx", ["wrangler", "kv:namespace", "list"]);
+        const kvListOutput = await runCmd("npx", [
+          "wrangler",
+          "kv:namespace",
+          "list",
+        ]);
         const namespaces = JSON.parse(kvListOutput);
-        const matchedKv = namespaces.find(ns => ns.title.includes("EMAIL_KV") || ns.title.includes("cloudflare-email-handler-EMAIL_KV"));
+        const matchedKv = namespaces.find(
+          (ns) =>
+            ns.title.includes("EMAIL_KV") ||
+            ns.title.includes("cloudflare-email-handler-EMAIL_KV"),
+        );
         if (matchedKv) {
           kvId = matchedKv.id;
-          broadcastLog({ step: `[Wrangler] KV Namespace EMAIL_KV ditemukan dengan ID: ${kvId}` });
+          broadcastLog({
+            step: `[Wrangler] KV Namespace EMAIL_KV ditemukan dengan ID: ${kvId}`,
+          });
         }
       } catch (err) {
-        broadcastLog({ step: `[Wrangler Warning] Gagal membaca list KV namespace: ${err.message}. Mencoba membuat baru...` });
+        broadcastLog({
+          step: `[Wrangler Warning] Gagal membaca list KV namespace: ${err.message}. Mencoba membuat baru...`,
+        });
       }
 
       if (!kvId) {
-        broadcastLog({ step: "[Wrangler] Membuat KV Namespace baru 'EMAIL_KV'..." });
-        const kvCreateOutput = await runCmd("npx", ["wrangler", "kv:namespace", "create", "EMAIL_KV"]);
-        const match = kvCreateOutput.match(/"id":\s*"([a-f0-9]{32})"/i) || kvCreateOutput.match(/with ID\s+([a-f0-9]{32})/i);
+        broadcastLog({
+          step: "[Wrangler] Membuat KV Namespace baru 'EMAIL_KV'...",
+        });
+        const kvCreateOutput = await runCmd("npx", [
+          "wrangler",
+          "kv:namespace",
+          "create",
+          "EMAIL_KV",
+        ]);
+        const match =
+          kvCreateOutput.match(/"id":\s*"([a-f0-9]{32})"/i) ||
+          kvCreateOutput.match(/with ID\s+([a-f0-9]{32})/i);
         if (match) {
           kvId = match[1];
-          broadcastLog({ step: `[Wrangler] Sukses membuat KV namespace dengan ID: ${kvId}` });
+          broadcastLog({
+            step: `[Wrangler] Sukses membuat KV namespace dengan ID: ${kvId}`,
+          });
         } else {
           throw new Error("Gagal mengambil ID KV dari output pembuatan KV");
         }
@@ -595,25 +651,35 @@ API_KEY = "${apiKey.trim()}"
 
       broadcastLog({ step: "[Wrangler] Men-deploy Worker ke Cloudflare..." });
       const deployOutput = await runCmd("npx", ["wrangler", "deploy"]);
-      const urlMatch = deployOutput.match(/(https:\/\/[a-zA-Z0-9\-]+\.[a-zA-Z0-9\-]+\.workers\.dev)/);
+      const urlMatch = deployOutput.match(
+        /(https:\/\/[a-zA-Z0-9\-]+\.[a-zA-Z0-9\-]+\.workers\.dev)/,
+      );
       let workerUrl = "";
       if (urlMatch) {
         workerUrl = urlMatch[1];
-        broadcastLog({ step: `[Wrangler] Worker berhasil di-deploy ke: ${workerUrl}` });
+        broadcastLog({
+          step: `[Wrangler] Worker berhasil di-deploy ke: ${workerUrl}`,
+        });
       } else {
         const urlMatch2 = deployOutput.match(/https:\/\/[^\s]+/);
         if (urlMatch2) {
           workerUrl = urlMatch2[0];
-          broadcastLog({ step: `[Wrangler Fallback] Worker di-deploy ke: ${workerUrl}` });
+          broadcastLog({
+            step: `[Wrangler Fallback] Worker di-deploy ke: ${workerUrl}`,
+          });
         } else {
-          throw new Error("Gagal mengekstrak URL Worker dari output deployment");
+          throw new Error(
+            "Gagal mengekstrak URL Worker dari output deployment",
+          );
         }
       }
 
-      broadcastLog({ step: "[Wrangler] Menyimpan konfigurasi baru ke config.json..." });
+      broadcastLog({
+        step: "[Wrangler] Menyimpan konfigurasi baru ke config.json...",
+      });
       const raw = fs.readFileSync(CONFIG_FILE, "utf-8");
       const parsed = JSON.parse(raw);
-      
+
       let domains = [];
       let settings = {};
       if (Array.isArray(parsed)) {
@@ -624,11 +690,13 @@ API_KEY = "${apiKey.trim()}"
       }
 
       const cleanDomain = domain.trim().toLowerCase();
-      const idx = domains.findIndex(c => c.domain.toLowerCase() === cleanDomain);
+      const idx = domains.findIndex(
+        (c) => c.domain.toLowerCase() === cleanDomain,
+      );
       const newConfig = {
         domain: cleanDomain,
         domain_url: workerUrl,
-        "x-api-key": apiKey || ""
+        "x-api-key": apiKey || "",
       };
 
       if (idx !== -1) {
@@ -636,12 +704,17 @@ API_KEY = "${apiKey.trim()}"
       } else {
         domains.push(newConfig);
       }
-      
+
       const toWrite = Array.isArray(parsed) ? domains : { domains, settings };
       fs.writeFileSync(CONFIG_FILE, JSON.stringify(toWrite, null, 2));
-      broadcastLog({ step: `[Wrangler Success] Domain ${cleanDomain} berhasil dikonfigurasi dan disimpan!` });
-      broadcastLog({ status: "wrangler-success", domain: cleanDomain, url: workerUrl });
-
+      broadcastLog({
+        step: `[Wrangler Success] Domain ${cleanDomain} berhasil dikonfigurasi dan disimpan!`,
+      });
+      broadcastLog({
+        status: "wrangler-success",
+        domain: cleanDomain,
+        url: workerUrl,
+      });
     } catch (err) {
       broadcastLog({ step: `[Wrangler Error] Setup gagal: ${err.message}` });
       broadcastLog({ status: "wrangler-error", error: err.message });

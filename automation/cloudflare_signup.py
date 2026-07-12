@@ -215,7 +215,7 @@ def wait_for_cf_verify_email(base_url, api_key, email, timeout=240):
                         links = re.findall(pat, body)
                         if links:
                             link = links[0].rstrip(".")
-                            log_step(f"Link verifikasi ditemukan!")
+                            # log_step(f"Link verifikasi ditemukan!")
                             return link
         except Exception as e:
             log_step(f"Ammail poll error: {e}")
@@ -257,7 +257,7 @@ def get_turnstile_sitekey(page, fallback=CF_SIGNUP_TURNSTILE_SITEKEY):
             return sitekey.strip()
     except Exception as e:
         log_step(f"get_turnstile_sitekey error: {e}")
-    log_step(f"Pakai sitekey hardcode: {fallback}")
+    # log_step(f"Pakai sitekey hardcode: {fallback}")
     return fallback
 
 
@@ -454,7 +454,7 @@ def wait_for_cf_clearance(page, timeout=45.0):
         now = time.time()
         if click_attempts < 5 and now >= next_click_at:
             click_attempts += 1
-            log_step(f"Klik Turnstile checkbox (attempt {click_attempts}/5)...")
+            # log_step(f"Klik Turnstile checkbox (attempt {click_attempts}/5)...")
             try_click_turnstile_checkbox(page)
             next_click_at = now + 8.0
             time.sleep(2.0)
@@ -700,7 +700,7 @@ def extract_global_api_key(page, password, ammail_base_url="", ammail_api_key=""
 
 
 def create_token_via_session(page, default_account_id=""):
-    log_step("Mencoba buat token via backend-native page.request.fetch...")
+    # log_step("Mencoba buat token via backend-native page.request.fetch...")
     try:
         # Pastikan browser di origin dash.cloudflare.com dan bukan di email-verification (agar cookies dashboard tersinkronisasi)
         if "dash.cloudflare.com" not in page.url or "email-verification" in page.url:
@@ -723,7 +723,7 @@ def create_token_via_session(page, default_account_id=""):
                 data = api_resp.json()
                 if data.get("success") and data.get("result"):
                     acc_id = data["result"][0]["id"]
-                    log_step(f"Berhasil mendapat Account ID via page.request: {acc_id[:8]}...")
+                    # log_step(f"Berhasil mendapat Account ID via page.request: {acc_id[:8]}...")
             else:
                 log_step(f"page.request /accounts failed with status {api_resp.status}: {api_resp.text()[:200]}")
         except Exception as e:
@@ -735,7 +735,7 @@ def create_token_via_session(page, default_account_id=""):
             log_step("Gagal mendapatkan Account ID")
             return None
         
-        log_step(f"Account ID untuk token: {acc_id[:8]}...")
+        # log_step(f"Account ID untuk token: {acc_id[:8]}...")
         
         # 2. Buat Workers AI Token via page.request.fetch
         try:
@@ -762,12 +762,12 @@ def create_token_via_session(page, default_account_id=""):
                 },
                 data=json.dumps(body)
             )
-            log_step(f"page.request /tokens status: {api_resp.status}")
+            # log_step(f"page.request /tokens status: {api_resp.status}")
             if api_resp.status in (200, 201):
                 res_data = api_resp.json()
                 if res_data.get("success") and res_data.get("result", {}).get("value"):
                     token_val = res_data["result"]["value"]
-                    log_step(f"Token berhasil dibuat via page.request: {token_val[:10]}...")
+                    log_step(f"Token berhasil dibuat.")
                     return token_val, acc_id
                 else:
                     log_step(f"page.request token creation failed: {res_data}")
@@ -925,7 +925,7 @@ def main():
         time.sleep(random.uniform(1.5, 2.5))
 
         # ── Step 2: Fill email ────────────────────────────────────────────────
-        log_step("Menunggu form signup muncul...")
+        # log_step("Menunggu form signup muncul...")
         form_found = False
         for attempt in range(3):
             try:
@@ -943,7 +943,7 @@ def main():
         if not form_found:
             die("Form signup tidak muncul setelah 3 percobaan")
 
-        log_step("Mengisi email...")
+        # log_step("Mengisi email...")
         email_sel = [
             "input[name='email']",
             "input[autocomplete='email']",
@@ -965,7 +965,7 @@ def main():
             die("Tidak bisa menemukan input email di halaman signup Cloudflare")
 
         # ── Step 3: Fill password ─────────────────────────────────────────────
-        log_step("Mengisi password...")
+        # log_step("Mengisi password...")
         pw_inputs = page.locator("input[name='password'], input[type='password']")
         pw_count = pw_inputs.count()
         if pw_count >= 1:
@@ -976,7 +976,7 @@ def main():
             time.sleep(0.3)
 
         # ── Step 4: Handle Turnstile ──────────────────────────────────────────
-        log_step("Menangani Turnstile captcha...")
+        # log_step("Menangani Turnstile captcha...")
         time.sleep(3)
 
         # First try auto-solve with retry — checks both cf_challenge_response and cf-turnstile-response
@@ -996,7 +996,7 @@ def main():
                 """)
                 if token_val and len(token_val.strip()) > 10:
                     turnstile_solved = True
-                    log_step(f"Turnstile auto-solved! (attempt {_ts_attempt+1})")
+                    log_step(f"Turnstile solved! (attempt {_ts_attempt+1})")
                     break
             except Exception:
                 pass
@@ -1053,7 +1053,7 @@ def main():
         email_already_registered = False
         try:
             page_text_lower = page.evaluate("document.body.innerText").lower()
-            log_step(f"Post-signup page snippet: {page_text_lower[:10]}")
+            # log_step(f"Post-signup page snippet: {page_text_lower[:10]}")
             # Only treat as already-registered if CF explicitly says so
             already_kw = [
                 "already registered", "already exists", "already in use",
@@ -1083,7 +1083,7 @@ def main():
 
         # If signup not detected as success, wait longer — CF may still be processing
         if not signup_success_verify and not email_already_registered:
-            log_step("Signup status unclear — waiting 10s for CF to redirect...")
+            # log_step("Signup status unclear — waiting 10s for CF to redirect...")
             for _sw in range(5):
                 time.sleep(2)
                 _cur_url = page.url
@@ -1153,7 +1153,7 @@ def main():
                     log_step("Menunggu redirect otomatis keluar dari halaman verifikasi...")
                     for _wait_url in range(10):
                         if "email-verification" not in page.url:
-                            log_step(f"Redirect terdeteksi ke: {page.url[:60]}")
+                            # log_step(f"Redirect terdeteksi ke: {page.url[:60]}")
                             break
                         time.sleep(1)
                     else:
@@ -1228,7 +1228,7 @@ def main():
                     data = api_resp.json()
                     if data.get("success") and data.get("result"):
                         _early_account_id = data["result"][0]["id"]
-                        log_step(f"Berhasil mendapat Account ID via API session: {_early_account_id[:8]}...")
+                        log_step(f"Berhasil mendapat Account ID via API session.")
             except Exception as e:
                 log_step(f"Gagal mengambil Account ID via API session awal: {e}")
 
