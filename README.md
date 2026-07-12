@@ -59,6 +59,7 @@ npm install
 Aplikasi menggunakan Camoufox untuk meniru perilaku browser manusia sealami mungkin.
 ```bash
 pip install camoufox
+pip3 install --break-system-packages camoufox "camoufox[geoip]" "playwright==1.59.0"
 python -m camoufox fetch
 ```
 
