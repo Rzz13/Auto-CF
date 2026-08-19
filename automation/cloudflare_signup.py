@@ -174,7 +174,7 @@ def create_ammail_inbox(base_url, api_key, email):
     except Exception:
         pass  # might already exist
 
-def wait_for_cf_verify_email(base_url, api_key, email, timeout=240):
+def wait_for_cf_verify_email(base_url, api_key, email, timeout=60):
     log_step(f"Menunggu email verifikasi Cloudflare ({email})...")
     alias = email.split("@")[0]
     deadline = time.time() + timeout
@@ -1137,7 +1137,7 @@ def main():
                 args.ammail_base_url,
                 args.ammail_api_key,
                 args.email,
-                timeout=240,
+                timeout=60,
             )
             if verify_link:
                 # log_step(f"Membuka link verifikasi...")
@@ -1168,7 +1168,7 @@ def main():
                     log_step(f"Warning navigasi verify link: {e}")
 
             else:
-                log_step("Email verifikasi tidak diterima dalam 2 menit, lanjut coba login...")
+                die("Email verifikasi tidak diterima dalam 1 menit")
         elif email_already_registered:
             log_step("Email sudah terdaftar — skip verifikasi, langsung ke login form")
         else:

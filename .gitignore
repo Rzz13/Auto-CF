@@ -17,8 +17,12 @@ config.json
 accounts.json
 proxies.txt
 
-# Log files
+# Log files & temporary data
 *.log
+data/
+email_test.html
+openroute.txt
+results.txt
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

@@ -15,6 +15,7 @@ const STORAGE_KEYS = {
   EMAIL_AUTO: "cf_auto_email_auto",
   EMAIL_DOMAIN: "cf_auto_email_domain",
   CONCURRENT_RUN: "cf_auto_concurrent_run",
+  PROVIDER: "cf_auto_provider",
 };
 
 // --- DOM Elements ---
@@ -33,6 +34,7 @@ const elDomainSelect = document.getElementById("domain-select");
 const elHeadless = document.getElementById("setting-headless");
 const elAutoSync = document.getElementById("setting-auto-sync");
 const elConcurrentRun = document.getElementById("setting-concurrent-run");
+const elProviderSelect = document.getElementById("provider-select");
 
 const elProxyEnabled = document.getElementById("setting-proxy-enabled");
 const elProxyType = document.getElementById("proxy-type");
@@ -66,23 +68,20 @@ let currentJobRetryCount = 0;
 
 // --- Helper Functions ---
 function generateRandomEmailPrefix() {
-  const prefixes = [
-    "rendi",
-    "farah",
-    "luna",
-    "rifki",
-    "sari",
-    "yanto",
-    "alif",
-    "daniel",
-    "chris",
-    "oliver",
-    "tom",
-    "hadi",
+  const adjectives = [
+    "swift", "cool", "dark", "bright", "lucky", "silent", "bold", "quick",
+    "sharp", "clean", "sleek", "smart", "brave", "calm", "deep", "fast",
+    "wild", "keen", "slick", "prime",
   ];
-  const randPrefix = prefixes[Math.floor(Math.random() * prefixes.length)];
-  const randNum = Math.floor(1000 + Math.random() * 9000);
-  return `${randPrefix}_${randNum}`;
+  const nouns = [
+    "fox", "wolf", "hawk", "bear", "lion", "byte", "node", "core",
+    "link", "star", "wave", "gear", "tide", "echo", "flux", "peak",
+    "storm", "ridge", "blaze", "crest",
+  ];
+  const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+  const noun = nouns[Math.floor(Math.random() * nouns.length)];
+  const num = Math.floor(10 + Math.random() * 9990);
+  return `${adj}${noun}${num}`;
 }
 
 function generateStrongPassword() {
@@ -159,6 +158,8 @@ async function loadSettings() {
     localStorage.getItem(STORAGE_KEYS.EMAIL_DOMAIN) || "random";
   elConcurrentRun.checked =
     localStorage.getItem(STORAGE_KEYS.CONCURRENT_RUN) === "true";
+  elProviderSelect.value =
+    localStorage.getItem(STORAGE_KEYS.PROVIDER) || "cloudflare-ai";
 
   try {
     const res = await fetch("/api/proxies");
@@ -190,6 +191,7 @@ async function saveSettings() {
   localStorage.setItem(STORAGE_KEYS.EMAIL_AUTO, elAutoEmail.checked);
   localStorage.setItem(STORAGE_KEYS.EMAIL_DOMAIN, elDomainSelect.value);
   localStorage.setItem(STORAGE_KEYS.CONCURRENT_RUN, elConcurrentRun.checked);
+  localStorage.setItem(STORAGE_KEYS.PROVIDER, elProviderSelect.value);
 
   const proxiesVal = elProxyList.value;
   try {
@@ -476,6 +478,7 @@ async function runQueueStep() {
         routerApiKey,
         captchaKey,
         headless: elHeadless.checked,
+        provider: elProviderSelect.value || "cloudflare-ai",
       }),
     });
 
@@ -593,6 +596,7 @@ async function triggerSingleRun(email, password) {
         routerApiKey,
         captchaKey,
         headless: elHeadless.checked,
+        provider: elProviderSelect.value || "cloudflare-ai",
       }),
     });
     if (!res.ok) {
@@ -737,8 +741,13 @@ elGenForm.addEventListener("submit", (e) => {
     }
   }
 
+  const provider = elProviderSelect.value || "cloudflare-ai";
+  const isOpenRouter = provider === "openrouter";
+  const isQoder = provider === "qoder";
+
   const autoMail = elAutoEmail.checked;
-  if (autoMail && cachedDomains.length === 0) {
+  // OpenRouter & Qoder: Python/Tempik yang handle email random jika domain kustom kosong
+  if (autoMail && cachedDomains.length === 0 && !isOpenRouter && !isQoder) {
     alert("Error: Belum ada domain email kustom yang dikonfigurasi!\n\nHarap masuk ke tab \"Email & Wrangler Setup\" untuk melakukan konfigurasi terlebih dahulu.");
     elTerminal.innerHTML = `<div class="line error-line">[Sistem Error] Gagal memulai otomatisasi: Belum ada domain email kustom yang dikonfigurasi! Harap buka tab "Email & Wrangler Setup" untuk menambahkan domain kustom atau deploy Worker terlebih dahulu.</div>`;
     return;
@@ -762,7 +771,12 @@ elGenForm.addEventListener("submit", (e) => {
 
   for (let i = 0; i < count; i++) {
     let email = "";
-    if (autoMail) {
+    let password = "";
+    if ((isOpenRouter || isQoder) && autoMail && cachedDomains.length === 0) {
+      // Biarkan Python yang generate via tempmail/random
+      email = "__random__";
+      password = "__random__";
+    } else if (autoMail) {
       const prefix = generateRandomEmailPrefix();
       let domain = "";
       if (domainSelection === "random") {
@@ -771,12 +785,14 @@ elGenForm.addEventListener("submit", (e) => {
         domain = domainSelection;
       }
       email = `${prefix}@${domain}`;
+      password = generateStrongPassword();
     } else {
       email = manualEmailVal;
+      password = generateStrongPassword();
     }
 
     runQueue.emails.push(email);
-    runQueue.passwords.push(generateStrongPassword());
+    runQueue.passwords.push(password);
   }
 
   // Update UI State

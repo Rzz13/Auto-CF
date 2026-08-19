@@ -102,7 +102,8 @@ Jika belum memiliki Worker untuk menangkap email verifikasi Cloudflare, masuk ke
 
 ```text
 ├── automation/
-│   └── cloudflare_signup.py    # Script python otomasi Playwright/Camoufox
+│   ├── cloudflare_signup.py    # Script python otomasi Playwright/Camoufox (Cloudflare)
+│   └── chatgpt_signup.py       # Script python otomasi API (ChatGPT account creator)
 ├── mailer/
 │   └── index.js                # Template email-routing worker Cloudflare
 ├── public/                     # Static files frontend dashboard (HTML, CSS, JS)

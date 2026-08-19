@@ -103,6 +103,67 @@ function parseProxyString(raw, type = "http") {
   return null;
 }
 
+// --- Provider Configurations ---
+const PROVIDER_CONFIG = {
+  "cloudflare-ai": {
+    label: "Cloudflare",
+    script: "cloudflare_signup.py",
+    has9Router: true,
+    supportsRandomEmail: false,
+  },
+  chatgpt: {
+    label: "ChatGPT",
+    script: "chatgpt_signup.py",
+    has9Router: false,
+    supportsRandomEmail: false,
+  },
+  openrouter: {
+    label: "OpenRouter",
+    script: "openrouter_signup.py",
+    has9Router: true,
+    supportsRandomEmail: true,
+  },
+  qoder: {
+    label: "Qoder",
+    script: "qoder_signup.py",
+    has9Router: true,
+    supportsRandomEmail: true,
+  },
+};
+
+/**
+ * Dynamically build 9Router connection payload based on provider
+ */
+function build9RouterConnData(provider, email, password, apiKey, accountId) {
+  const name = `${email}|${password}`;
+
+  if (provider === "cloudflare-ai") {
+    return {
+      provider: "cloudflare-ai",
+      authType: "apikey",
+      name: name,
+      apiKey: apiKey,
+      email: email,
+      priority: 1,
+      isActive: true,
+      testStatus: "active",
+      providerSpecificData: {
+        accountId: accountId || "",
+      },
+    };
+  }
+
+  // Dynamic payload for all API key / token providers (openrouter, qoder, etc.)
+  return {
+    provider: provider,
+    name: name,
+    apiKey: apiKey,
+    priority: 1,
+    proxyPoolId: null,
+    testStatus: "active",
+  };
+}
+
 let activeChildren = [];
 let cachedAuthToken = null;
 
@@ -154,39 +215,78 @@ app.post("/api/run", async (req, res) => {
     routerUrl,
     routerApiKey,
     headless,
+    provider,
   } = req.body;
 
-  if (!email || !password) {
+  const targetProvider = provider || "cloudflare-ai";
+  const pConfig = PROVIDER_CONFIG[targetProvider] || PROVIDER_CONFIG["cloudflare-ai"];
+  const providerLabel = pConfig.label;
+
+  const isRandomEmail = !email || email === "__random__";
+  const isRandomPassword = !password || password === "__random__";
+
+  if (
+    !pConfig.supportsRandomEmail &&
+    (!email || !password || isRandomEmail || isRandomPassword)
+  ) {
     return res.status(400).json({ error: "Email and password are required" });
   }
 
   // Construct python script arguments
   const pythonBinary = process.platform === "win32" ? "python" : "python3";
-  const scriptPath = path.join(__dirname, "automation", "cloudflare_signup.py");
-  const args = [
-    scriptPath,
-    `--email=${email}`,
-    `--password=${password}`,
-    `--profiles-dir=${path.join(__dirname, "profiles")}`,
-  ];
+  const scriptPath = path.join(__dirname, "automation", pConfig.script);
 
-  if (headless !== false) {
-    args.push("--headless");
-  }
+  const args = [scriptPath];
 
-  if (ammailBaseUrl && ammailApiKey && ammailDomain) {
-    args.push(`--ammail-base-url=${ammailBaseUrl}`);
-    args.push(`--ammail-api-key=${ammailApiKey}`);
-    args.push(`--ammail-domain=${ammailDomain}`);
+  // Hanya pass email/password jika bukan random
+  if (!isRandomEmail) args.push(`--email=${email}`);
+  if (!isRandomPassword) args.push(`--password=${password}`);
+
+  if (targetProvider === "cloudflare-ai") {
+    args.push(`--profiles-dir=${path.join(__dirname, "profiles")}`);
+    if (headless !== false) {
+      args.push("--headless");
+    }
+    if (ammailBaseUrl && ammailApiKey && ammailDomain) {
+      args.push(`--ammail-base-url=${ammailBaseUrl}`);
+      args.push(`--ammail-api-key=${ammailApiKey}`);
+      args.push(`--ammail-domain=${ammailDomain}`);
+    } else {
+      const domain = email.split("@")[1];
+      args.push(`--ammail-base-url=custom`);
+      args.push(`--ammail-api-key=custom`);
+      args.push(`--ammail-domain=${domain}`);
+    }
+    if (captchaKey) {
+      args.push(`--2captcha-key=${captchaKey}`);
+    }
+  } else if (targetProvider === "chatgpt") {
+    if (ammailDomain) {
+      args.push(`--default-domain=${ammailDomain}`);
+    } else {
+      const domain = email.split("@")[1];
+      args.push(`--default-domain=${domain}`);
+    }
+    if (ammailBaseUrl && ammailApiKey) {
+      args.push(`--ammail-base-url=${ammailBaseUrl}`);
+      args.push(`--ammail-api-key=${ammailApiKey}`);
+    }
   } else {
-    const domain = email.split("@")[1];
-    args.push(`--ammail-base-url=custom`);
-    args.push(`--ammail-api-key=custom`);
-    args.push(`--ammail-domain=${domain}`);
-  }
-
-  if (captchaKey) {
-    args.push(`--2captcha-key=${captchaKey}`);
+    // OpenRouter, Qoder & general API key providers args
+    if (headless !== false) {
+      args.push("--headless");
+    }
+    if (ammailBaseUrl && ammailApiKey && ammailDomain) {
+      args.push(`--ammail-base-url=${ammailBaseUrl}`);
+      args.push(`--ammail-api-key=${ammailApiKey}`);
+      args.push(`--ammail-domain=${ammailDomain}`);
+    } else if (!isRandomEmail) {
+      const domain = email.split("@")[1];
+      args.push(`--ammail-domain=${domain}`);
+    }
+    if (captchaKey && targetProvider === "openrouter") {
+      args.push(`--2captcha-key=${captchaKey}`);
+    }
   }
 
   if (proxy) {
@@ -205,7 +305,9 @@ app.post("/api/run", async (req, res) => {
   console.log(
     `running with args: ${email}|${password}${proxy ? ` {${proxy}}` : ""}`,
   );
-  broadcastLog({ step: `Memulai otomatisasi Camoufox untuk: ${email}...` });
+  broadcastLog({
+    step: `Memulai otomatisasi ${providerLabel} untuk: ${isRandomEmail ? "(random email)" : email}...`,
+  });
 
   const child = spawn(pythonBinary, args);
   child.email = email;
@@ -218,26 +320,30 @@ app.post("/api/run", async (req, res) => {
       try {
         const parsed = JSON.parse(line);
         if (parsed.step) {
-          broadcastLog({ step: `[${email}] ${parsed.step}`, email });
+          broadcastLog({ step: `[${providerLabel}] ${parsed.step}`, email });
         } else if (parsed.status === "success") {
+          // Untuk akun random, pakai email & password dari Python output
+          const finalEmail = parsed.email || email;
+          const finalPassword = parsed.password || password;
+
           console.log(
-            `Berhasil membuat akun: ${parsed.email}|${password} [${parsed.account_id}|${parsed.api_key}]${proxy ? ` {${proxy}}` : ""}`,
+            `Berhasil membuat akun ${providerLabel}: ${finalEmail}|${finalPassword} [${parsed.api_key ? parsed.api_key.slice(0, 15) : parsed.account_id || "N/A"}]${proxy ? ` {${proxy}}` : ""}`,
           );
           broadcastLog({
-            step: `[${email}] Akun sukses terverifikasi!`,
+            step: `[${providerLabel}] Akun sukses dibuat: ${finalEmail}`,
             email,
           });
 
           // Save to local accounts.json
           const newAccount = {
-            email: parsed.email,
-            password: password,
-            accountId: parsed.account_id,
-            apiKey: parsed.api_key,
-            apiKeyStatus: "ready",
+            email: finalEmail,
+            password: finalPassword,
+            accountId: parsed.account_id || "",
+            apiKey: parsed.api_key || "",
+            apiKeyStatus: pConfig.supportsRandomEmail && parsed.api_key ? "ready" : pConfig.supportsRandomEmail ? "n/a" : "ready",
             createdAt: new Date().toISOString(),
-            profileDir: `profiles/cloudflare/${parsed.email.replace("@", "_")}`,
-            provider: "cloudflare-ai",
+            profileDir: pConfig.supportsRandomEmail ? "" : `profiles/cloudflare/${parsed.email.replace("@", "_")}`,
+            provider: targetProvider,
           };
 
           try {
@@ -249,37 +355,29 @@ app.post("/api/run", async (req, res) => {
             );
             filtered.unshift(newAccount);
             fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(filtered, null, 2));
-            // broadcastLog({
-            //   step: `[${email}] Tersimpan lokal di accounts.json!`,
-            //   email,
-            // });
           } catch (writeErr) {
             console.error("Local save error:", writeErr);
           }
 
-          // Push to 9Router VPS connection manager if settings provided
-          if (routerUrl && routerApiKey) {
+          // Push to 9Router VPS connection manager if settings provided & provider supported
+          if (pConfig.has9Router && routerUrl && routerApiKey) {
             try {
               broadcastLog({
-                step: `[${email}] Mengirim koneksi baru ke VPS 9Router...`,
+                step: `[${providerLabel}] Mengirim koneksi baru ke VPS 9Router...`,
                 email,
               });
               const urlClean = routerUrl.endsWith("/")
                 ? routerUrl.slice(0, -1)
                 : routerUrl;
-              const connData = {
-                provider: "cloudflare-ai",
-                authType: "apikey",
-                name: `${newAccount.email}|${password}`,
-                apiKey: newAccount.apiKey,
-                email: newAccount.email,
-                priority: 1,
-                isActive: true,
-                testStatus: "active",
-                providerSpecificData: {
-                  accountId: newAccount.accountId,
-                },
-              };
+
+              // Dynamic connData creation via helper function
+              const connData = build9RouterConnData(
+                targetProvider,
+                finalEmail,
+                finalPassword,
+                newAccount.apiKey,
+                newAccount.accountId,
+              );
 
               let headers = {
                 "Content-Type": "application/json",
@@ -291,7 +389,7 @@ app.post("/api/run", async (req, res) => {
               } else {
                 if (!cachedAuthToken) {
                   broadcastLog({
-                    step: `[${email}] Belum ada token tersimpan. Melakukan login ke 9Router...`,
+                    step: `[${providerLabel}] Belum ada token tersimpan. Melakukan login ke 9Router...`,
                     email,
                   });
                   await get9RouterAuthToken(urlClean, routerApiKey);
@@ -317,7 +415,7 @@ app.post("/api/run", async (req, res) => {
 
               if (response.status === 401 && !isApiKey) {
                 broadcastLog({
-                  step: `[${email}] Token kedaluwarsa atau tidak valid (401). Melakukan login ulang...`,
+                  step: `[${providerLabel}] Token kedaluwarsa atau tidak valid (401). Melakukan login ulang...`,
                   email,
                 });
                 cachedAuthToken = null;
@@ -341,7 +439,7 @@ app.post("/api/run", async (req, res) => {
                   }
                 } else {
                   broadcastLog({
-                    step: `[${email}] Gagal login ulang ke 9Router. Kredensial password salah.`,
+                    step: `[${providerLabel}] Gagal login ulang ke 9Router. Kredensial password salah.`,
                     email,
                   });
                 }
@@ -349,19 +447,19 @@ app.post("/api/run", async (req, res) => {
 
               if (response.status === 200 || response.status === 201) {
                 broadcastLog({
-                  step: `[${email}] Sukses tersinkronisasi ke VPS 9Router!`,
+                  step: `[${providerLabel}] Sukses tersinkronisasi ke VPS 9Router!`,
                   email,
                 });
               } else {
                 const errText = await response.text();
                 broadcastLog({
-                  step: `[${email}] Gagal sinkronisasi 9Router (Status ${response.status}): ${errText}`,
+                  step: `[${providerLabel}] Gagal sinkronisasi 9Router (Status ${response.status}): ${errText}`,
                   email,
                 });
               }
             } catch (syncErr) {
               broadcastLog({
-                step: `[${email}] Gagal sinkronisasi 9Router (Koneksi error): ${syncErr.message}`,
+                step: `[${providerLabel}] Gagal sinkronisasi 9Router (Koneksi error): ${syncErr.message}`,
                 email,
               });
             }
@@ -372,7 +470,7 @@ app.post("/api/run", async (req, res) => {
           broadcastLog({ status: "error", error: parsed.error, email });
         }
       } catch (e) {
-        broadcastLog({ step: `[${email}] ${line}`, email });
+        broadcastLog({ step: `[${providerLabel}] ${line}`, email });
       }
     }
   });
@@ -381,7 +479,7 @@ app.post("/api/run", async (req, res) => {
     const rawLines = data.toString().split("\n");
     for (const rawLine of rawLines) {
       if (rawLine.trim()) {
-        broadcastLog({ step: `[${email}][stderr] ${rawLine}`, email });
+        broadcastLog({ step: `[${providerLabel}][stderr] ${rawLine}`, email });
       }
     }
   });
