@@ -55,6 +55,55 @@ const elTerminal = document.getElementById("terminal-logs");
 const elTableBody = document.getElementById("accounts-table-body");
 const elSseStatus = document.getElementById("sse-status");
 
+// --- Live Browser Screen (Chromium VNC) Elements ---
+const elBrowserBadge = document.getElementById("browser-status-badge");
+const elBrowserPlaceholder = document.getElementById("browser-placeholder");
+const elBrowserIframe = document.getElementById("browser-vnc-iframe");
+const elBtnReloadVnc = document.getElementById("btn-toggle-vnc");
+
+function updateBrowserScreen(isLive = false) {
+  const isHeadlessOff = elHeadless && !elHeadless.checked;
+
+  if (isLive && isHeadlessOff) {
+    if (elBrowserBadge) {
+      elBrowserBadge.className = "badge-status live";
+      elBrowserBadge.innerText = "LIVE STREAM";
+    }
+    if (elBrowserPlaceholder) elBrowserPlaceholder.style.display = "none";
+    if (elBrowserIframe) {
+      elBrowserIframe.style.display = "block";
+      const vncHost = window.location.hostname || "localhost";
+      const vncPort = "6080";
+      const streamUrl = `${window.location.protocol}//${vncHost}:${vncPort}/vnc.html?autoconnect=true&resize=scale`;
+      if (elBrowserIframe.src !== streamUrl) {
+        elBrowserIframe.src = streamUrl;
+      }
+    }
+  } else {
+    if (elBrowserBadge) {
+      elBrowserBadge.className = "badge-status offline";
+      elBrowserBadge.innerText = "STANDBY";
+    }
+    if (elBrowserIframe) {
+      elBrowserIframe.style.display = "none";
+      elBrowserIframe.src = "about:blank";
+    }
+    if (elBrowserPlaceholder) elBrowserPlaceholder.style.display = "flex";
+  }
+}
+
+if (elBtnReloadVnc) {
+  elBtnReloadVnc.addEventListener("click", () => {
+    if (elBrowserIframe && elBrowserIframe.style.display !== "none") {
+      const currentSrc = elBrowserIframe.src;
+      elBrowserIframe.src = "about:blank";
+      setTimeout(() => {
+        elBrowserIframe.src = currentSrc;
+      }, 300);
+    }
+  });
+}
+
 // --- Runner Queue State ---
 let runQueue = {
   active: false,
@@ -546,6 +595,7 @@ function advanceQueue() {
   } else {
     // Queue finished
     runQueue.active = false;
+    updateBrowserScreen(false);
     writeToTerminal(`===========================================`, "success");
     writeToTerminal(
       `Semua tugas otomatisasi selesai! (${runQueue.totalCount} Job)`,
@@ -801,6 +851,7 @@ elGenForm.addEventListener("submit", (e) => {
   elStop.style.display = "block";
   elTerminal.innerHTML = `<div class="line system-line">[Sistem] Memulai antrian otomatisasi (${count} Job)...</div>`;
 
+  updateBrowserScreen(true);
   runQueueStep();
 });
 
@@ -825,6 +876,7 @@ elStop.addEventListener("click", async () => {
 
   // Reset states
   runQueue.active = false;
+  updateBrowserScreen(false);
   elSubmit.removeAttribute("disabled");
   elSubmit.innerText = "Generate & Run";
 

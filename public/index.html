@@ -209,18 +209,42 @@
         </section>
       </div>
 
-      <!-- Right Column: Live Terminal Logs -->
-      <section class="glass-card logs-panel">
-        <div class="panel-header">
-          <h2>📺 Live Terminal Logs</h2>
-          <button type="button" class="btn-clear" id="btn-clear-logs">Clear Logs</button>
-        </div>
-        <div class="terminal-container">
-          <div class="terminal" id="terminal-logs">
-            <div class="line system-line">[Sistem] Standalone Automation Dashboard Siap. Masukkan pengaturan proxy dan jalankan otomatisasi pendaftaran.</div>
+      <!-- Right Column: Live Browser Screen & Terminal Logs -->
+      <div class="right-column-panel" style="display: flex; flex-direction: column; gap: 20px; flex: 1; min-width: 0;">
+        
+        <!-- Live Browser Screen (Chromium VNC Stream) -->
+        <section class="glass-card browser-screen-panel">
+          <div class="panel-header">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <h2>🖥️ Live Browser Screen (Chromium)</h2>
+              <span id="browser-status-badge" class="badge-status offline">STANDBY</span>
+            </div>
+            <button type="button" class="btn-clear" id="btn-toggle-vnc" style="padding: 4px 10px; font-size: 12px;">🔄 Reload Stream</button>
           </div>
-        </div>
-      </section>
+          <div class="browser-screen-container">
+            <div id="browser-placeholder" class="browser-placeholder">
+              <div class="placeholder-icon">🌐</div>
+              <div class="placeholder-text">Live Browser Stream Standby</div>
+              <div class="placeholder-sub">Aktifkan <strong>Headless Mode = OFF</strong> di Automation Settings saat menjalankan proses untuk melihat layar Chromium secara langsung di sini.</div>
+            </div>
+            <iframe id="browser-vnc-iframe" src="about:blank" style="display: none;" frameborder="0"></iframe>
+          </div>
+        </section>
+
+        <!-- Live Terminal Logs -->
+        <section class="glass-card logs-panel">
+          <div class="panel-header">
+            <h2>📺 Live Terminal Logs</h2>
+            <button type="button" class="btn-clear" id="btn-clear-logs">Clear Logs</button>
+          </div>
+          <div class="terminal-container">
+            <div class="terminal" id="terminal-logs">
+              <div class="line system-line">[Sistem] Standalone Automation Dashboard Siap. Masukkan pengaturan proxy dan jalankan otomatisasi pendaftaran.</div>
+            </div>
+          </div>
+        </section>
+
+      </div>
 
     </div>
 
