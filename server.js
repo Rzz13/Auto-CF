@@ -316,7 +316,12 @@ app.post("/api/run", async (req, res) => {
     step: `Memulai otomatisasi ${providerLabel} untuk: ${isRandomEmail ? "(random email)" : email}...`,
   });
 
-  const child = spawn(pythonBinary, args);
+  const childEnv = { ...process.env };
+  if (process.platform === "linux" && !childEnv.DISPLAY) {
+    childEnv.DISPLAY = ":99";
+  }
+
+  const child = spawn(pythonBinary, args, { env: childEnv });
   child.email = email;
   activeChildren.push(child);
 
