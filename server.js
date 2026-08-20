@@ -321,7 +321,21 @@ app.post("/api/run", async (req, res) => {
     childEnv.DISPLAY = ":99";
   }
 
-  const child = spawn(pythonBinary, args, { env: childEnv });
+  let execCmd = pythonBinary;
+  let execArgs = args;
+
+  // Di Linux, jika headless = false, bungkus otomatis dengan xvfb-run
+  if (process.platform === "linux" && headless === false) {
+    execCmd = "xvfb-run";
+    execArgs = [
+      "--auto-servernum",
+      "--server-args=-screen 0 1920x1080x24",
+      pythonBinary,
+      ...args,
+    ];
+  }
+
+  const child = spawn(execCmd, execArgs, { env: childEnv });
   child.email = email;
   activeChildren.push(child);
 

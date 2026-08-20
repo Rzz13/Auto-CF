@@ -33,9 +33,9 @@
       <!-- Main Grid -->
       <div class="dashboard-grid">
       
-      <!-- Left Column: Controls -->
-      <div class="control-column">
-        <!-- Photo 1: Generate Temp Accounts Widget -->
+      <!-- Left Column: Controls & Live Browser Screen -->
+      <div class="control-column" style="display: flex; flex-direction: column; gap: 20px;">
+        <!-- Generate Temp Accounts Widget -->
         <section class="glass-card widget-card">
           <div class="widget-header">
             <span class="widget-icon">👤➕</span>
@@ -88,7 +88,30 @@
           </form>
         </section>
 
-        <!-- Photo 2: Automation Settings Widget -->
+        <!-- Live Browser Screen (Chromium VNC Stream) -->
+        <section class="glass-card browser-screen-panel">
+          <div class="panel-header">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <h2>🖥️ Live Browser Screen (Chromium)</h2>
+              <span id="browser-status-badge" class="badge-status offline">STANDBY</span>
+            </div>
+            <button type="button" class="btn-clear" id="btn-toggle-vnc" style="padding: 4px 10px; font-size: 12px;">🔄 Reload Stream</button>
+          </div>
+          <div class="browser-screen-container">
+            <div id="browser-placeholder" class="browser-placeholder">
+              <div class="placeholder-icon">🌐</div>
+              <div class="placeholder-text">Live Browser Stream Standby</div>
+              <div class="placeholder-sub">Aktifkan <strong>Headless Mode = OFF</strong> di Automation Settings saat menjalankan proses untuk melihat layar Chromium secara langsung di sini.</div>
+            </div>
+            <iframe id="browser-vnc-iframe" src="about:blank" style="display: none;" frameborder="0"></iframe>
+          </div>
+        </section>
+      </div>
+
+      <!-- Right Column: Automation Settings & Terminal Logs -->
+      <div class="right-column-panel" style="display: flex; flex-direction: column; gap: 20px; flex: 1; min-width: 0;">
+        
+        <!-- Automation Settings Widget -->
         <section class="glass-card widget-card">
           <div class="widget-header">
             <span class="widget-icon">⚙️</span>
@@ -206,29 +229,6 @@
 
             <button type="submit" class="btn-save-settings" id="btn-save-settings">Save Settings</button>
           </form>
-        </section>
-      </div>
-
-      <!-- Right Column: Live Browser Screen & Terminal Logs -->
-      <div class="right-column-panel" style="display: flex; flex-direction: column; gap: 20px; flex: 1; min-width: 0;">
-        
-        <!-- Live Browser Screen (Chromium VNC Stream) -->
-        <section class="glass-card browser-screen-panel">
-          <div class="panel-header">
-            <div style="display: flex; align-items: center; gap: 10px;">
-              <h2>🖥️ Live Browser Screen (Chromium)</h2>
-              <span id="browser-status-badge" class="badge-status offline">STANDBY</span>
-            </div>
-            <button type="button" class="btn-clear" id="btn-toggle-vnc" style="padding: 4px 10px; font-size: 12px;">🔄 Reload Stream</button>
-          </div>
-          <div class="browser-screen-container">
-            <div id="browser-placeholder" class="browser-placeholder">
-              <div class="placeholder-icon">🌐</div>
-              <div class="placeholder-text">Live Browser Stream Standby</div>
-              <div class="placeholder-sub">Aktifkan <strong>Headless Mode = OFF</strong> di Automation Settings saat menjalankan proses untuk melihat layar Chromium secara langsung di sini.</div>
-            </div>
-            <iframe id="browser-vnc-iframe" src="about:blank" style="display: none;" frameborder="0"></iframe>
-          </div>
         </section>
 
         <!-- Live Terminal Logs -->
