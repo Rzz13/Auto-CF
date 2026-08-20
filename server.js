@@ -44,13 +44,20 @@ app.get("/api/accounts", (req, res) => {
 // SSE endpoint for live terminal log streaming
 app.get("/api/stream", (req, res) => {
   res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
   res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no"); // Instruct Nginx to disable buffering
   res.flushHeaders();
 
   sseClients.push(res);
 
+  // Send periodic keep-alive ping every 15 seconds to prevent Nginx timeout
+  const keepAliveInterval = setInterval(() => {
+    res.write(": keep-alive\n\n");
+  }, 15000);
+
   req.on("close", () => {
+    clearInterval(keepAliveInterval);
     sseClients = sseClients.filter((client) => client !== res);
   });
 });
